@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { submitResult } from "../api/api";
 
@@ -35,12 +35,10 @@ function BallInput(
         duplicate,
         editing,
         autoFocus,
-        index
     },
     ref
 ) {
     const isPB = color === "red";
-
     const displayValue = editing ? value : pad(value);
 
     const glow =
@@ -123,6 +121,7 @@ export default function ResultForm() {
     const refs = Array.from({ length: 6 }, () => useRef(null));
     const focusIdx = (i) => refs[i]?.current?.focus();
 
+    // --- Duplicate flags (each index true/false) ---
     const dupFlags = whites.map(
         (v, i, arr) => v !== "" && arr.indexOf(v) !== i
     );
@@ -140,8 +139,29 @@ export default function ResultForm() {
         const next = [...whites];
         next[i] = v;
         setWhites(next);
-        setStatus(""); // ✅ Clear status immediately on input change
+        setStatus(""); // auto-clear error
     };
+
+    // 🔔 Listen for PredictionList pick
+    useEffect(() => {
+        const onFill = (e) => {
+            const { numbers = [], powerball: pb = "" } = e.detail || {};
+            const w = numbers.slice(0, 5).map((n) => String(n).replace(/\D+/g, "").slice(0, 2));
+            const p = String(pb).replace(/\D+/g, "").slice(0, 2);
+            setWhites(w);
+            setPowerball(p);
+            setEditing(null);
+            setStatus("");
+            // Focus PB so user can just hit submit or tweak PB
+            focusIdx(5);
+            // Sort whites now if all filled
+            if (!w.includes("")) {
+                setWhites(sortWhites(w));
+            }
+        };
+        window.addEventListener("pb:fill", onFill);
+        return () => window.removeEventListener("pb:fill", onFill);
+    }, []); // run once
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -164,7 +184,7 @@ export default function ResultForm() {
         try {
             await submitResult({
                 numbers: sorted.map(Number),
-                powerball: pb
+                powerball: pb,
             });
             setStatus("✅ Submitted!");
             setWhites(["", "", "", "", ""]);
@@ -207,13 +227,13 @@ export default function ResultForm() {
                     />
                 ))}
 
-                {/* ✅ PB — full fix */}
+                {/* PB */}
                 <ForwardBall
                     ref={refs[5]}
                     value={powerball}
                     onChange={(v) => {
                         setPowerball(v.replace(/\D+/g, "").slice(0, 2));
-                        setStatus(""); // ✅ Auto-clear error
+                        setStatus("");
                     }}
                     onClickBall={() => {
                         focusIdx(5);
@@ -222,10 +242,10 @@ export default function ResultForm() {
                     onFocusEnter={() => {
                         setEditing(5);
                         setStatus("");
-                        trySortWhites(); // ✅ Only now sorting allowed
+                        trySortWhites(); // only now sorting allowed
                     }}
-                    onFocusPrev={() => focusIdx(4)}
-                    onFocusNext={() => focusIdx(5)}
+                    onFocusPrev={() => focusIdx(4)} // shift+tab / ArrowLeft back
+                    onFocusNext={() => focusIdx(5)} // PB is last
                     placeholder="PB"
                     color="red"
                     duplicate={false}
@@ -235,13 +255,15 @@ export default function ResultForm() {
                 <motion.button
                     type="submit"
                     className="px-6 py-3 bg-red-600 text-white font-bold rounded-full shadow-md hover:bg-red-700"
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
                 >
                     Submit
                 </motion.button>
             </form>
 
             {status && (
-                <p className="text-sm font-medium text-center text-red-600 mt-3">
+                <p className={`text-sm text-center mt-3 ${status.startsWith("✅") ? "text-green-600" : "text-red-600"}`}>
                     {status}
                 </p>
             )}
