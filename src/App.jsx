@@ -1,29 +1,28 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ResultForm from "./components/ResultForm";
 import PredictionList from "./components/PredictionList";
 
 export default function App() {
-    const [predictions, setPredictions] = useState([
-        {
-            id: 1,
-            numbers: [3, 12, 19, 28, 44],
-            powerball: 17,
-            score: 0.73,
-            favorite: true,
-        },
-        {
-            id: 2,
-            numbers: [1, 4, 22, 31, 40],
-            powerball: 11,
-            score: 0.58,
-            favorite: false,
-        },
-    ]);
+    const [predictions, setPredictions] = useState([]);
 
+    // Add a prediction
+    const addPrediction = ({ numbers, powerball }) => {
+        const newPrediction = {
+            id: Date.now(),           // unique ID
+            numbers,
+            powerball,
+            score: 0,                 // default score until backend returns one
+            favorite: false,
+        };
+        setPredictions((prev) => [newPrediction, ...prev]); // prepend newest
+    };
+
+    // Delete prediction
     const deletePrediction = (id) => {
         setPredictions((prev) => prev.filter((p) => p.id !== id));
     };
 
+    // Toggle favorite
     const toggleFavorite = (id) => {
         setPredictions((prev) =>
             prev.map((p) =>
@@ -32,17 +31,30 @@ export default function App() {
         );
     };
 
+    // ✅ Listen for successful submission from ResultForm
+    useEffect(() => {
+        const handler = (e) => {
+            addPrediction(e.detail);
+        };
+        window.addEventListener("pb:submitted", handler);
+        return () => window.removeEventListener("pb:submitted", handler);
+    }, []);
+
     return (
         <div className="max-w-4xl mx-auto p-6">
             <ResultForm />
 
-            <h2 className="text-lg font-bold mt-8 mb-3">Predictions</h2>
+            {predictions.length > 0 && (
+                <>
+                    <h2 className="text-lg font-bold mt-8 mb-3">Predictions</h2>
 
-            <PredictionList
-                predictions={predictions}
-                onDelete={deletePrediction}
-                onToggleFavorite={toggleFavorite}
-            />
+                    <PredictionList
+                        predictions={predictions}
+                        onDelete={deletePrediction}
+                        onToggleFavorite={toggleFavorite}
+                    />
+                </>
+            )}
         </div>
     );
 }
